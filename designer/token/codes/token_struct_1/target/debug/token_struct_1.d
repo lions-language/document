@@ -1,1 +1,0 @@
-/home/andrew/workspace/github/lions-language/document/designer/token/codes/token_struct_1/target/debug/token_struct_1: /home/andrew/workspace/github/lions-language/document/designer/token/codes/token_struct_1/src/main.rs
