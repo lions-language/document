@@ -1,5 +1,5 @@
 ## 工具方法
-### 封装查看下一个字符
+### 封装lookup_next_one
 - 功能
 	- 查看下一个字符, 如果读取不到, 从 callback 中读取新的序列
 	- 如果读取到了数据, 以回调的方式返回给上层
@@ -97,3 +97,89 @@
 	477         }
 	478     }
 	```
+
+### 匹配输入字符串
+- 功能
+	- 如果在 字符序列中找到了匹配的串, 就返回 true, 否则返回false
+- 为什么不直接用rust的子字符串查找方法?
+	- lions-language的词法分析是采用实时读取的方式(不是一次性读取), 那么如果使用rust的find方法, 那么如果content中不存在数据了(也就是边界条件下)会出现找不到的问题
+- 思路
+	- 首先需要一个循环, 从字符序列中读取数据(如果数据不够, 就从cb中获取)
+		- 先说一下第一种方式: 定义一个和待查找序列(为方便说明, 这里的待查找序列后续使用 src 替代)相同大小的buffer, 循环读取src.len()和字符, 并存入buffer中; 待src.len()存储完毕后, 将buffer和src进行比对, 看看是否相等, 伪代码(不是正确的语法, 只是为了方便阅读)如下
+		```rust
+		let len = src.len();
+		let mut buffer = Vec::new();
+		for i in 0..len {
+			buffer.push(content[i]);
+		}
+		if src == buffer {
+			return true;
+		} else {
+			return false;
+		}
+		```
+		这种方式存在效率问题:
+		1. 每次都需要在buffer中存储完src.len()个字符才能进行比对, 但其实很多情况下, 比对到第一个就不匹配了, 那么这样就多出很多次的无用迭代
+		2. 每次存储完毕后, 需要对两个字符序列进行比对, 这又是一次迭代
+		- 那么就出现了第二种优化方式: 每次迭代都与src相应位置的字符进行比较(不用担心从src的相应位置取数据的效率问题, 连续的内存取值是非常快的), 只要不相等就结束当次的迭代
+		- 需要一个辅助方法
+		```rust
+		 1 pub struct U8ArrayIsEqual<'a> {
+		 2     src: &'a [u8],
+		 3     index: usize,
+		 4     length: usize
+		 5 }
+		 6 
+		 7 pub enum U8ArrayIsEqualResult {
+		 8     // 没有达到输入序列的长度, 就不匹配了
+		 9     NoMatch(usize),
+		10     // 当前字符和之前的字符都匹配了
+		11     Continue,
+		12     Match(usize)
+		13 }
+		14 
+		15 impl<'a> U8ArrayIsEqual<'a> {
+		16     pub fn dynamic_match(&mut self, c: char) -> U8ArrayIsEqualResult {
+		17         /*
+		18          * 动态匹配 与输入的数组相等的数组
+		19          * */
+		20         match self.src.get(self.index) {
+		21             Some(ch) => {
+		22                 if ch.clone() as char == c {
+		23                     self.index += 1;
+		24                     // 在 ch == c 后每次都判断是否等于输入序列的长度
+		25                     if self.index == self.length {
+		26                         self.index = 0;
+		27                         return U8ArrayIsEqualResult::Match(self.length);
+		28                     } else {
+		29                         return U8ArrayIsEqualResult::Continue;
+		30                     }
+		31                 } else {
+		32                     let r = U8ArrayIsEqualResult::NoMatch(self.index);
+		33                     self.index = 0;
+		34                     return r;
+		35                 }
+		36             },
+		37             None => {
+		38                 /*
+		39                  * 如果到达这个分支, 说明 index > length, 这是不可能发生的(注意这里的 index, 在匹配的时候才>    会自增), 因为只要和输入的序列匹配了 (index == length) 的时候, 就会直接返回, 如果中间遇到了不匹配的, 也直接返
+		   回了
+		40                  * */
+		41                 panic!("should not happend");
+		42             }
+		43         }
+		44     }
+		45 
+		46     pub fn reset(&mut self) {
+		47         self.index = 0;
+		48     }
+		49 
+		50     pub fn new(src: &'a [u8]) -> Self {
+		51         Self{
+		52             src: src,
+		53             index: 0,
+		54             length: src.len()
+		55         }
+		56     }
+		57 }
+		```
