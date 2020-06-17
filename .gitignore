@@ -1,3 +1,6 @@
 designer/_book/
+*.pdf
 !.gitignore
+target/
+Cargo.lock
 
