@@ -20,8 +20,32 @@
 		- 不存在: 从content中分析下一个token
 			- content中不存在, 则调用 cb 更新 content, 然后继续分析content
 
-### 编码
-- 根据思路, 可以写一个 lookup_next_n 的方法(查看第n个token)
+### 结构定义
+```rust
+ 96 pub struct LexicalParser<T: FnMut() -> CallbackReturnStatus> {
+ 97     file: String,
+ 98     line: u64,
+ 99     col: u64,
+100     content: VecU8,
+101     cb: T,
+102     tokens_buffer: Vec<TokenVecItem>
+103 }
+```
+- file: 文件路径
+- line: 行数
+- col: 列数
+- content: 缓存的字符序列
+- cb: 外部提供的闭包 **这个 cb 要记住, 以后都用 cb 说明**
+	- cb 要求返回一个 content, 在 LexicalParser 内部, 如果 content 不足, 将调用 cb 更新 content
+	- 为什么选择了闭包, 而不是回调呢
+		* 因为一般外部调用者是从 IO 中读取数据, 然后在 cb 中更新新的数据; 那么必然需要读取周边的环境, 所以回调是做不到的
+	- 使用 **FnMut** 类型的闭包, 因为需要修改环境中的量, 所以需要可变的闭包
+- tokens_buffer: 缓存解析完的 token 的临时缓存
+	- 如果外部需要下一个token, 但是该缓存中不足, 需要从 content 中解析, 解析后存储该缓存
+
+### 实现
+- 功能
+	- 查看第n个token
 - 方法原型
 ```rust
 fn lookup_next_n(&mut self, n: usize) -> Option<&TokenVecItem>;

@@ -2,7 +2,7 @@
 - 主要说明 token 结构体的内容, 字段说明
 - token中必要方法的解决方案
 
-## 结构内容
+## TokenContext结构内容
 - file: 文件完整路径
 	- 方便检测到错误时, 可以定位所在文件
 - line: 行号
@@ -10,7 +10,7 @@
 - token_type: token类型
 
 ## token中涉及到的方法(nup 和 led)
-- 读则这里先不要管 nup 和 led 是什么, 现在只要认为是每一个token都需要实现的两个方法; 比如说, 提取出了 + token(TokenType_Plus), 那么 TokenType_Plus 的token实例是需要实现 nup 和 led 的
+- 读者这里先不要管 nup 和 led 是什么, 现在只要认为是每一个token都需要实现的两个方法; 比如说, 提取出了 + token(TokenType_Plus), 那么 TokenType_Plus 的token实例是需要实现 nup 和 led 的
 - 还需要了解一点, 词法解析阶段得到的token是需要存储在一个容器中, 那么就要思考如何将不同类型的token放在同一个容器内呢
 - 这里有多种做法, 下面讨论一下每一种方式的实现原理和最终的选择
 
@@ -138,3 +138,53 @@ impl Token for IdToken {
 - 选择
 	因为Token结果集将提供给语法分析器, 而语法分析需要顺序访问每一个token, 这样的话, 使用连续内存存储token更为合理, 所以在上面的区别中, way2方式相比way1方式来说更加的适合; 综合来说way2更加的适合, 所以lions-language选择way2方式
 
+## Token trait定义
+```rust
+87 pub trait Token {
+88     fn nup(&self, _context: &TokenContext) {
+89     }
+90     fn led(&self, _context: &TokenContext) {
+91     }
+92     fn token_attrubute(&self) -> &'static TokenAttrubute {
+93         &*default_token_attrubute
+94     }
+95     fn context(&self) -> &TokenContext;
+96 }
+```
+- nup方法和led方法在语法分析阶段再做解释
+- context方法就是返回 TokenContext 的对象, 在实现 Token trait 的结构中, 需要将 TokenContext 存储在strcut成员中, 并通过这个方法返回成员的引用
+- token_attrubute方法比较特殊, 该方法中存储的是都是不会变更的数据, 所以都定义为静态的(可以降低内存消耗, 不用每一次调用 token_attrubute 或者 创建一个Token对象 时都需要创建一个新的对象)
+	- rust的第三方中有一个 lazy_static 的 crate, 该 crate 可以创建静态量
+
+### 作为例子, 看一下 操作数 token的实现
+```rust
+110 lazy_static!{
+111     static ref operand_token_attrubute: TokenAttrubute = TokenAttrubute{
+112         bp: &0,
+113         oper_type: &TokenOperType::Operand
+114     };
+115 }
+116 
+117 pub struct OperandToken {
+118     context: TokenContext
+119 }
+120 
+121 impl Token for OperandToken {
+122     fn context(&self) -> &TokenContext {
+123         return &self.context;
+124     }
+125 
+126     fn token_attrubute(&self) -> &'static TokenAttrubute {
+127         &*operand_token_attrubute
+128     }
+129 }
+130 
+131 impl OperandToken {
+132     pub fn new(context: TokenContext) -> Self {
+133         Self{
+134             context: context
+135         }
+136     }
+137 }
+```
+- operand_token_attrubute 就是静态量, 在 token_attrubute 中被返回
