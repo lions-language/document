@@ -131,60 +131,96 @@ impl Token for IdToken {
 		说到这里, 读者应该已经发现了, 其实way1的函数存储方式和way2的方法存储方式对编译器来说是一样的, 每一个对象中存储的都是函数指针, 而不是具体的函数定义, 所以从这一点看来, way1和way2没有区别
 	- 接下来就是way1和way2存储在容器中的比较
 		way1是将整个结构对象存储在容器中, 如果容器是连续内存(动态数组), 那么访问效率会很高, 但是存在问题, 在动态数组扩容的时候, 将导致内存的重新分配, 结构内容多的情况下, 将有较大的内存拷贝消耗; 如果容器是离散内存(链表结构), 没有了动态分配问题, 但是随机访问的效率没有顺序方法的效率高
-		way2如果放在容器中, 其实每一个元素的大小都是固定的(前面讨论过, 这种方式下, 容器中存储的是指针, 所以大小是固定的, 而且数据量较小), 如果容器是连续内存, 尽管在扩容时, 会有拷贝动作, 但是毕竟每一个元素的空间很小, 所以可以忽略这种影响, 在这种情况下, way2要优于way1; 当容器是离散内存时, 会产生两次随机内存访问(第一次是容器内部获取元素值时的随机访问; 第二次是通过容器中存储的指针, 找对象值的随机访问), 而在这种情况下, way1要优于way2
-	- 最后比较一下代码编写方面的区别
-		way1的函数调用方式是面向过程的实现方式, 而way2是面向对象的实现方式, 就这一点而言, 面向对象的代码看起来更容易维护
+		way2如果放在容器中, 其实每一个元素的大小都是固定的(前面讨论过, 这种方式下, 容器中存储的是指针, 所以大小是固定的, 而且数据量较小), 如果容器是连续内存, 尽管在扩容时, 会有拷贝动作, 但是毕竟每一个元素的空间很小, 所以可以忽略这种影响, 在这种情况下, way2要优于way1; 当容器是离散内存时, 会产生两次随机内存访问(第一次是容器内部获取元素值时的随机访问; 第二次是通过容器中存储的指针, 找对象值的随机访问), 而在这种情况下, way1要优于way2; way2是存在运行时消耗, 而way1在编译期就可以确定大小, 没有运行时消耗, 这方面考虑的话, way1要优于way2
 
 - 选择
-	因为Token结果集将提供给语法分析器, 而语法分析需要顺序访问每一个token, 这样的话, 使用连续内存存储token更为合理, 所以在上面的区别中, way2方式相比way1方式来说更加的适合; 综合来说way2更加的适合, 所以lions-language选择way2方式
+	* 因为 lions-language 是 "一遍" 形式的, 在获取token的时候, 进行词法解析, 所以不需要很大的存储空间来存储大量的 token, 而且基本都是 lookup 一个token, 使用完之后, 就从数组中弹出了, 所以可以把 token buffer 的容量设为一个较小的数值(比如说5), 那么就不会进行动态扩容; 那么在顺序内存中取值效率便是最高的
+	* 介于 way1 不存在运行时开销, 而且是顺序存储方式, 另外, 最令人担忧的动态扩容消耗也不会存在, 所以 way1 是这种场景下的最佳选择
 
-## Token trait定义
+## Token struct定义
 ```rust
-87 pub trait Token {
-88     fn nup(&self, _context: &TokenContext) {
-89     }
-90     fn led(&self, _context: &TokenContext) {
-91     }
-92     fn token_attrubute(&self) -> &'static TokenAttrubute {
-93         &*default_token_attrubute
-94     }
-95     fn context(&self) -> &TokenContext;
-96 }
+158 pub struct Token<T: FnMut() -> CallbackReturnStatus, CB: Grammar> {
+159     pub context: TokenContext,
+160     pub attrubute: &'static TokenAttrubute,
+161     pub nup: NupFunc<T, CB>,
+162     pub led: LedFunc<T, CB>
+163 }
+164 
+165 impl<T: FnMut() -> CallbackReturnStatus, CB: Grammar> Token<T, CB> {
+166     pub fn context_ref(&self) -> &TokenContext {
+167         &self.context
+168     }
+169 
+170     pub fn token_attrubute(&self) -> &'static TokenAttrubute {
+171         self.attrubute
+172     }
+173 
+174     pub fn nup(&self, grammar: &mut GrammarParser<T, CB>, express_context: &ExpressContext<T, CB>) -> TokenM    ethodResult {
+175         (self.nup)(self, grammar, express_context)
+176     }
+177 
+178     pub fn led(&self, grammar: &mut GrammarParser<T, CB>, express_context: &ExpressContext<T, CB>) -> TokenM    ethodResult {
+179         (self.led)(self, grammar, express_context)
+180     }
+181 }
 ```
-- nup方法和led方法在语法分析阶段再做解释
-- context方法就是返回 TokenContext 的对象, 在实现 Token trait 的结构中, 需要将 TokenContext 存储在strcut成员中, 并通过这个方法返回成员的引用
-- token_attrubute方法比较特殊, 该方法中存储的是都是不会变更的数据, 所以都定义为静态的(可以降低内存消耗, 不用每一次调用 token_attrubute 或者 创建一个Token对象 时都需要创建一个新的对象)
+- context字段: 存储 token 的一些上下文数据, 比如 行号 / token类型
+```rust
+145 #[derive(Default)]
+146 pub struct TokenContext {
+147     // 所在行号
+148     pub line: u64,
+149     // 列号
+150     pub col: u64,
+151     // token类型
+152     pub token_type: TokenType,
+153 }
+```
+- attrubute字段: 存储 token 的静态属性, 该结构中的成员全部都为 **'static** 的, 因为存储的是都是不会变更的数据, 定义为静态的可以降低内存消耗, 不用每一次调用 token_attrubute 或者 创建一个Token对象 时都需要创建一个新的对象
 	- rust的第三方中有一个 lazy_static 的 crate, 该 crate 可以创建静态量
-
-### 作为例子, 看一下 操作数 token的实现
 ```rust
-110 lazy_static!{
-111     static ref operand_token_attrubute: TokenAttrubute = TokenAttrubute{
-112         bp: &0,
-113         oper_type: &TokenOperType::Operand
-114     };
-115 }
-116 
-117 pub struct OperandToken {
-118     context: TokenContext
-119 }
-120 
-121 impl Token for OperandToken {
-122     fn context(&self) -> &TokenContext {
-123         return &self.context;
-124     }
-125 
-126     fn token_attrubute(&self) -> &'static TokenAttrubute {
-127         &*operand_token_attrubute
-128     }
-129 }
-130 
-131 impl OperandToken {
-132     pub fn new(context: TokenContext) -> Self {
-133         Self{
-134             context: context
-135         }
-136     }
-137 }
+84 pub enum TokenOperType {
+85     NoOperate,
+86     Operand,
+87     Operator
+88 }
+
+94 pub struct TokenAttrubute {
+95     pub bp: &'static u8,
+96     pub oper_type: &'static TokenOperType
+97 }
 ```
-- operand_token_attrubute 就是静态量, 在 token_attrubute 中被返回
+- nup和led在语法分析阶段再做解释
+- context_ref方法返回 TokenContext 的引用, 便于操作
+
+### 作为例子, 看一下 number 的定义
+```rust
+ 5 pub struct NumberToken {
+ 6 }
+ 7 
+ 8 lazy_static!{
+ 9     static ref number_token_attrubute: TokenAttrubute = TokenAttrubute{
+10         bp: &0,
+11         oper_type: &TokenOperType::Operand
+12     };
+13 }
+14 
+15 impl NumberToken {
+16     fn nup<T: FnMut() -> CallbackReturnStatus, CB: Grammar>(token: &Token<T, CB>, grammar: &mut GrammarParse    r<T, CB>, express_context: &ExpressContext<T, CB>) -> TokenMethodResult {
+17         TokenMethodResult::None
+18     }
+19 }
+20 
+21 impl NumberToken {
+22     pub fn new<T: FnMut() -> CallbackReturnStatus, CB: Grammar>(context: TokenContext) -> Token<T, CB> {
+23         Token{
+24             context: context,
+25             attrubute: &*number_token_attrubute,
+26             nup: token::default_nup,
+27             led: token::default_led
+28         }
+29     }
+30 }
+```
+- number_token_attrubute 就是静态量, 被赋予 Token 中 attrubute 字段
+
