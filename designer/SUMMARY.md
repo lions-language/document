@@ -10,6 +10,7 @@
 	* [token中strfmt实现](token/strfmt.md)
 * [语法分析](grammar/readme.md)
 	* [语法分析结构定义](grammar/grammar_struct.md)
+	* [表达式](grammar/grammar_express.md)
 * [包管理](package/readme.md)
 	* [import设计](package/import.md)
 
