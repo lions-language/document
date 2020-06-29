@@ -121,90 +121,93 @@
 ### 示例(以 含有 + 和 \* 运算符, 数值操作数的表达式进行势力解析)
 - expression完整定义
 ```rust
- 73     pub fn expression(&mut self, operator_bp: &u8, express_context: &ExpressContext<T, CB>, input_token_ptr:
- 74         let input_token = input_token_ptr.as_ref::<T, CB>();
- 75         match input_token.nup(self, express_context) {
- 76             TokenMethodResult::None => {
- 77                 /*
- 78                  * 如果 nup 中遇到了 前缀运算符, 内部会进行自身调用, 如果 前缀运算符后面不是 nup 可以处理的 
- 79                  * 比如说, 解析到 -1:
- 80                  * 1. 首先调用 - 号的 nup 方法, - 号的 nup 方法中获取 next token. 调用 next token 的 nup 方>
- 81                  * */
- 82                 self.panic(&format!("expect operand, but found {:?}", &input_token.context_ref().token_type)
- 83             },
- 84             TokenMethodResult::StmtEnd => {
- 85                 return TokenMethodResult::StmtEnd;
- 86             },
- 87             _ => {}
- 88         }
- 89         let mut next_tp = match self.lexical_parser.lookup_next_one_ptr() {
- 90             Some(tp) => {
- 91                 tp
- 92             },
- 93             None => {
- 94                 /*
- 95                  * 操作数之后是 EOF => 结束
- 96                  * */
- 97                 return TokenMethodResult::StmtEnd;
- 98             }
- 99         };
-100         let mut next_token = next_tp.as_ref::<T, CB>();
-101         /*
-102          * 检测是否需要结束
-103          * 一条语句的结束一定在操作数之后
-104          * */
-105         let cb_r = (express_context.end_f)(self, next_token);
-106         match cb_r {
-107             TokenMethodResult::StmtEnd
-108             | TokenMethodResult::End => {
-109                 /* 
-110                  * 语句结束 或者 是 () 内的结束
-111                  * */
-112                 return cb_r;
-113             },
-114             _ => {
-115             }
-116         }
-117         // println!("{}", next_token.context.token_type.format());
-118         /*
-119          * 如果到达这里, 说明 next_token 是操作符
-120          * 比较优先级, 找到比输入的小(或者等于)的为止 (也就是说 只要大于就继续)
-121          * */
-122         while next_token.token_attrubute().bp > operator_bp {
-123             /*
-124              * 这里的 led 就是继续比对 next_token 这个操作符的 优先级, 找到比 next_token 优先级还要低(或者等
-125              * */
-126             // println!{"{}", next_token.context.token_type.format()};
-127             match next_token.led(self, express_context) {
-128                 TokenMethodResult::None => {
-129                     /*
-130                      * 操作符的 led 方法没有实现
-131                      * */
-132                     panic!(format!("operator: {} not implement", next_token.context_ref().token_type.format(
-133                 },
-134                 TokenMethodResult::StmtEnd => {
-135                     return TokenMethodResult::StmtEnd;
+ 74     pub fn expression(&mut self, operator_bp: &u8, express_context: &ExpressContext<T, CB>, input_token_ptr:     &TokenPointer) -> TokenMethodResult {
+ 75         let input_token = input_token_ptr.as_ref::<T, CB>();
+ 76         let nup_r = input_token.nup(self, express_context);
+ 77         match nup_r {
+ 78             TokenMethodResult::None => {
+ 79                 /*
+ 80                  * 如果 nup 中遇到了 前缀运算符, 内部会进行自身调用, 如果 前缀运算符后面不是 nup 可以处理的     token, 对应的 token 会自己抛出异常
+ 81                  * 比如说, 解析到 -1:
+ 82                  * 1. 首先调用 - 号的 nup 方法, - 号的 nup 方法中获取 next token. 调用 next token 的 nup 方法, 如果 next token 的  nup 方法返回 None, 需要报错
+ 83                  * */
+ 84                 self.panic(&format!("expect operand, but found {:?}", &input_token.context_ref().token_type)    );
+ 85             },
+ 86             TokenMethodResult::StmtEnd => {
+ 87                 return nup_r;
+ 88             },
+ 89             _ => {}
+ 90         }
+ 91         let mut next_tp = match self.lexical_parser.lookup_next_one_ptr() {
+ 92             Some(tp) => {
+ 93                 tp
+ 94             },
+ 95             None => {
+ 96                 /*
+ 97                  * 操作数之后是 EOF => 结束
+ 98                  * */
+ 99                 return TokenMethodResult::StmtEnd;
+100             }
+101         };
+102         let mut next_token = next_tp.as_ref::<T, CB>();
+103         /*
+104          * 检测是否需要结束
+105          * 一条语句的结束一定在操作数之后
+106          * */ 
+107         let cb_r = (express_context.end_f)(self, next_token);
+108         match cb_r {
+109             TokenMethodResult::StmtEnd
+110             | TokenMethodResult::ParentheseEnd => {
+111                 /*
+112                  * 语句结束 或者 是 () 内的结束
+113                  * */
+114                 return cb_r;
+115             },
+116             _ => {
+117             }
+118         }
+119         // println!("{}", next_token.context.token_type.format());
+120         /*
+121          * 如果到达这里, 说明 next_token 是操作符
+122          * 比较优先级, 找到比输入的小(或者等于)的为止 (也就是说 只要大于就继续)
+123          * */
+124         while next_token.token_attrubute().bp > operator_bp {
+125             /*
+126              * 这里的 led 就是继续比对 next_token 这个操作符的 优先级, 找到比 next_token 优先级还要低(或者等于)的为止
+127              * */
+128             // println!{"{}", next_token.context.token_type.format()};
+129             let led_r = next_token.led(self, express_context);
+130             match led_r {
+131                 TokenMethodResult::None => {
+132                     /*
+133                      * 操作符的 led 方法没有实现
+134                      * */
+135                     panic!(format!("operator: {} not implement", next_token.context_ref().token_type.format()));
 136                 },
-137                 _ => {}
-138             }
-139             next_tp = match self.lexical_parser.lookup_next_one_ptr() {
-140                 Some(tp) => {
-141                     tp
-142                 },
-143                 None => {
-144                     /*
-145                      * 如果到达这里, 说明 led 方法返回的不是 IoEOF, 那么这一次的 lookup next 一定不会是 None
-146                      * */
-147                     panic!("should not happend");
-148                     return TokenMethodResult::Panic;
-149                 }
-150             };
-151             next_token = next_tp.as_ref::<T, CB>();
-152         }
-153         TokenMethodResult::End
-154     }
+137                 TokenMethodResult::StmtEnd
+138                 | TokenMethodResult::ParentheseEnd => {
+139                     return led_r;
+140                 },
+141                 _ => {}
+142             }
+143             next_tp = match self.lexical_parser.lookup_next_one_ptr() {
+144                 Some(tp) => {
+145                     tp
+146                 },
+147                 None => {
+148                     /*
+149                      * 如果到达这里, 说明 led 方法返回的不是 IoEOF, 那么这一次的 lookup next 一定不会是 None
+150                      * */
+151                     panic!("should not happend");
+152                     return TokenMethodResult::Panic;
+153                 }
+154             };
+155             next_token = next_tp.as_ref::<T, CB>();
+156         }
+157         TokenMethodResult::End
+158     }
 ```
-- 除了多了容错处理之外, 还添加了 是否是表达式结尾的判断 (105 行 ~ 116 行)
+- 除了多了容错处理之外, 还添加了 是否是表达式结尾的判断 (107 行 ~ 117 行)
 - 容错
 	- 82 行: 如果 nup 处理完成之后, 返回的是 CallbackReturnStatus::None => 说明不是操作数类, 那么就是语法错误 => 提示错误
 	- 132 行: 如果 led 处理完成之后, 返回的是 CallbackReturnStatus::None => 说明对应的操作符类没有实现 led 方法, 也或许说 不是 操作符类 => 语法错误
@@ -213,7 +216,7 @@
 - number的nup方法
 ```rust
 15 impl NumberToken {
-16     fn nup<T: FnMut() -> CallbackReturnStatus, CB: Grammar>(token: &Token<T, CB>, grammar: &mut GrammarParse    r<T, CB>, express_context: &ExpressContext<T, CB>) -> TokenMethodResult {
+16     fn nup<T: FnMut() -> CallbackReturnStatus, CB: Grammar>(token: &Token<T, CB>, grammar: &mut GrammarParser<T, CB>, express_context: &ExpressContext<T, CB>) -> TokenMethodResult {
 17         let mut token_value = TokenValue::from_token(grammar.take_next_one());
 18         grammar.grammar_context().cb.express_const_number(token_value);
 19         TokenMethodResult::End
@@ -328,7 +331,7 @@
 23         match &t.context_ref().token_type {
 24             TokenType::RightParenthese => {
 25                 grammar.skip_next_one();
-26                 return TokenMethodResult::End;
+26                 return TokenMethodResult::ParentheseEnd;
 27             },
 28             _ => {
 29             } 
@@ -363,6 +366,45 @@
 - 左括号的 nup 方法就是调用 expression 方法, 因为 () 中的语句优先级是最高的
 
 ### 如何处理前缀运算符
+- 思路
+	- 前缀运算符在表达式的首部/尾部/两个操作数之间, 所以应该在 nup 方法中处理
+	- 在 nup 方法中调用下一个 token 的 nup 方法, 直到遇到操作数的叶子节点(number, id, ...)
+- 代码(拿减号前缀作为示例)
+```rust
+16     fn nup<T: FnMut() -> CallbackReturnStatus, CB: Grammar>(token: &Token<T, CB>, grammar: &mut GrammarParser<T, CB>, express_context: &ExpressContext<T, CB>) -> TokenMethodResult {
+17         /*
+18          * 移除 token
+19          * */
+20         let t = grammar.take_next_one();
+21         /*
+22          * 找到下一个 token, 然后调用下一个 token 的 nup
+23          * */
+24         let tp = match grammar.lookup_next_one_ptr() {
+25             Some(tp) => {
+26                 tp
+27             },
+28             None => {
+29                 /*
+30                  * - 后面遇到了 EOF => 语法错误
+31                  * */
+32                 grammar.panic("expect operand, but arrive EOF");
+33                 return TokenMethodResult::Panic;
+34             }
+35         };
+36         let next = tp.as_ref::<T, CB>();
+37         let r = next.nup(grammar, express_context);
+38         match r {
+39             TokenMethodResult::None => {
+40                 grammar.panic(&format!("expect operand, but found: {}", next.context_format()));
+41                 return TokenMethodResult::Panic;
+42             },
+43             _ => {
+44             }
+45         }
+46         grammar.grammar_context().cb.operator_negative(TokenValue::from_token(t));
+47         r
+48     }
+```
 
 ### 如何处理后缀运算符
 
