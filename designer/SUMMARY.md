@@ -12,6 +12,7 @@
 	* [语法分析结构定义](grammar/grammar_struct.md)
 	* [表达式](grammar/grammar_express.md)
 	* [函数](grammar/function.md)
+	* [函数重载](grammar/function_override.md)
 * [包管理](package/readme.md)
 	* [import设计](package/import.md)
 
