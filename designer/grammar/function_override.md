@@ -52,9 +52,9 @@
 			- 私有
 
 ### 原生类型的不同点
-- 原生类型相比其他类型, 多出一个 host_set (宿主集合)
-	- host_set: set[HostMethod]
-		- HostMethod举例
+- 原生类型相比其他类型, 多出一个 primeval_set (原生集合)
+	- primeval_set: set[PrimevalMethod]
+		- PrimevalMethod举例
 			- U32PlusU32(u32, u32): 因为是双目的, 所以需要提供两个值
 			- StrPlusStr(Str, Str)
 			- U32IdPrefixPlusPlus(u32): 因为是单目运算, 所以需要提供一个值
@@ -63,18 +63,37 @@
 		- 首先拿着当前模块信息查找 u32 类型中的 override_mapping 中是否存在 **u32_plus_u32**
 			- 存在: 调用重写的方法
 			- 不存在
-				- 方法是否在 host_set 中
+				- 方法是否在 primeval_set 中
 					- 存在
 						- 运行时, 调用以下函数, 直接得到结果
 						```rust
-						enum HostMethodResult {
+						enum PrimevalMethodResult {
 						}
-						fn host_method(value: HostMethod) -> HostMethodResult;
+						fn primeval_method(value: PrimevalMethod) -> PrimevalMethodResult;
 						```
 						- 编译时, 调用以下函数, 获取字节码
 						```rust
-						fn compile_host_method(value: HostMethod);
+						fn compile_primeval_method(value: PrimevalMethod);
 						```
 - 优化分析
 	- 拿着当前模块信息去 override_mapping 中查找的时候, 首先应该查找 override_mapping 是否存在 当前模块信息, 如果连当前模块都没有, 那么当前模块一定没有重写类型中的任何方法; 这种情况下就没必要对 函数信息对象(包含: 字段个数, 函数名, 参数类型列表(原生类型是枚举), 返回类型列表(原生类型是枚举)) 进行字符串的转换了 (转换为 函数名_参数类型_...); 所以顺序应该是先查找 当前模块, 在条件满足的情况下, 再去拼接字符串
+- 查找流程
+	- 将函数信息对象转换为 PrimevalMethod 枚举
+	- 如果转换成功, 说明输入的操作属于原生操作, 否则不是原生操作, 如果不是原生操作, 不可能在 override_mapping 中
+		- 转换成功
+			- 根据模块信息查找 override_mapping 中是否存在
+				- 存在
+					- 将 PrimevalMethod 转换为字符串, 用转换后的字符串在 override_mapping 中查找
+						- 找到
+							- 调用 override_mapping 中的编译的方法
+						- 未找到
+							- 根据 PrimevalMethod 执行/编译 宿主语言实现的方法
+				- 不存在
+					- 根据 PrimevalMethod 执行/编译 宿主语言实现的方法
+		- 转换失败
+			- 转换失败, 说明不是宿主语言实现的方法, 也就是说这可能是使用 lions-language 拓展的方法, 那么就从define_mapping 中查找; 根据 函数信息对象 拼接字符串, 用得到的字符串在 define_mapping 中查找
+				- 找到
+					- 调用 define_mapping 中指定方法实现
+				- 未找到
+					- 不是原生方法, 也没有定义 => 报错
 
