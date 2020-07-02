@@ -184,7 +184,6 @@ impl Token for IdToken {
 86     Operand,
 87     Operator
 88 }
-
 94 pub struct TokenAttrubute {
 95     pub bp: &'static u8,
 96     pub oper_type: &'static TokenOperType

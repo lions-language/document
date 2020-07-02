@@ -3,7 +3,7 @@
 - token字符遍历一般有两种方式
 	- way1: 先解析完所有的token, 并将token存储在容器中, 在语法分析阶段依次读取token流中的每一个元素, 接着进行语法分析
 	- way2: 语法分析时再去分析token(这一般称之为"一遍", 也就是遍历一遍)
-- 很显然, way1的不管在内存还是在效率上都是低于way2的, 另外, 如果文件非常的大(以至于超过了内存), 那么way1的方式更是不可用
+- 很显然, way1的不管在内存还是在效率上都是低于way2的, 另外, 如果文件非常的大(以至于超过了内存), 那么way1的方式更是不可用(虽然可以使用先写入一部分, 然后清空内存, 再继续, 但是这样一来, 又增加了磁盘的读写消耗)
 - lions-language的虽然也是先编译, 再运行(类似java虚拟机), 所以在编译期如果慢一点是不会影响运行时的效率的; 但是lions-language的起初设想就是为了实现语言级别的进程间通信, 所以在一定情况下, 需要动态执行, 所以需要考虑编译期的效率
 
 ### 实现思路
@@ -43,7 +43,104 @@
 - tokens_buffer: 缓存解析完的 token 的临时缓存
 	- 如果外部需要下一个token, 但是该缓存中不足, 需要从 content 中解析, 解析后存储该缓存
 
-### 实现
+### 看一下content字段 VecU8中实现的方法
+```rust
+ 5 #[derive(Debug)]
+ 6 pub struct VecU8{
+ 7     v: Vec<u8>,
+ 8     index: usize
+ 9 }
+10 
+11 impl VecU8 {
+12     fn skip_next_n(&mut self, n: usize) {
+13         /*
+14          * 跳过n个字符
+15          * */
+16         if n > self.v.len() {
+17             panic!(
+18             format!(
+19             "skip next must be called after lookup, n: {}, self.v.len(): {}",
+20             n, self.v.len()));
+21         }
+22         for _ in 0..n {
+23             self.v.remove(0);
+24         }
+25         self.index = 0;
+26     }
+27 
+28     fn skip_next_one(&mut self) {
+29         self.skip_next_n(1);
+30     }
+31 
+32     fn virtual_skip_next_n(&mut self, n: usize) {
+33         /*
+34          * 没有实际的skip, 只是追加索引, 这个方法是为了回溯使用
+35          * */
+36         self.index += n;
+37     }
+38 
+39     fn virtual_skip_next_one(&mut self) {
+40         self.virtual_skip_next_n(1);
+41     }
+42 
+43     fn backtrack_n(&mut self, n: usize) {
+44         /*
+45          * 回溯
+46          * */
+47         if n > self.index {
+48             panic!(
+49             format!(
+50             "backtrack n > self.index(backtrack_n be called times > 1), n: {}, self.index: {}",
+51             n, self.index));
+52         }
+53         self.index -= n;
+54     }
+55 
+56     fn lookup_next_n(&self, n: usize) -> Option<char> {
+57         if n == 0 {
+58             panic!("n > 0");
+59         }
+60         let index = self.index + n - 1;
+61         if (self.v.len() > 0) && (index > self.v.len() - 1) {
+62             /*
+63              * 没有可以获取的值了
+64              * */
+65             return None;
+66         } else {
+67             if self.v.len() == 0 {
+68                 return None;
+69             }
+70             return Some(self.v[index] as char)
+71         }
+72     }
+73 
+74     fn lookup_next_one(&self) -> Option<char> {
+75         return self.lookup_next_n(1);
+76     }
+77 
+78     fn append(&mut self, mut content: VecU8) {
+79         self.v.append(&mut content.v);
+80     }
+81 
+82     pub fn from_vec_u8(v: Vec<u8>) -> Self {
+83         Self{
+84             v: v,
+85             index: 0
+86         }
+87     }
+88 
+89     fn new() -> Self {
+90         Self{
+91             v: Vec::new(),
+92             index: 0
+93         }
+94     }
+95 }
+```
+- 代码说明
+	- TODO ...
+
+### 实现lookup_next_n
 - 功能
 	- 查看第n个token
 - 方法原型
