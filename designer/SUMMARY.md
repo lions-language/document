@@ -15,6 +15,8 @@
 	* [函数重载](grammar/function_override.md)
 	* [结构](grammar/strcut.md)
 	* [其他](grammar/other.md)
+* [编译](compile/readme.md)
+	* [函数调用](compile/func_call.md)
 * [包管理](package/readme.md)
 	* [import设计](package/import.md)
 
