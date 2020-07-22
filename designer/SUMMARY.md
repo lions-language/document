@@ -17,6 +17,8 @@
 	* [其他](grammar/other.md)
 * [编译](compile/readme.md)
 	* [函数调用](compile/func_call.md)
+	* [静态分配](compile/static_alloc.md)
+	* [中间文件](compile/mid_file.md)
 * [虚拟机](vm/readme.md)
 	* [编译与运行](vm/compile_and_run.md)
 * [包管理](package/readme.md)
