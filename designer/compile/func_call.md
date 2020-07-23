@@ -23,3 +23,37 @@
 		- 将地址值设置为 start_addr
 		- 释放作用域内的所有内存
 
+## 函数定义
+- 在进行函数调用的时候, 判断被调用的函数是否定义了
+	- 未定义
+		- 编译函数, 不写入到字节码中(改变写入走向)
+			- 提供一个接口 DefineFunction, 并为每一个方法定义创建一个 DefineFunction 的实体对象, 并为函数定义做好映射 (FunctionKey <-> DefineFunction); FunctionKey 应该在整个编译单元中是唯一的
+			```rust
+			trait DefineFunction {
+				fn new(index: u64) -> Self;
+				fn write(&mut self, instruction: Instruction);
+				fn fill_func_addr(&mut self, pos: &Position, addr: &AddressKey);
+				fn push_undefine(&mut self, other: &Self, pos: Position);
+				fn is_exist_will_filled(&mut self) -> bool;
+				/*
+				 * 返回在 Dispatch 中的索引
+				 * */
+				fn index(&self) -> u64;
+				/*
+				 * AddressKey 是函数定义后, 写入到 代码块 的地址信息
+				 * 该方法中, 实现类 应该将缓存写入到 代码段中, 并返回写入后, 在代码段中的位置信息
+				 * 	结束后需要做的几件事情
+				 *  1. 需要填充 undefine 队列中的地址信息
+				 *  	在调用每一次填充后, 根据 is_exist_will_filled() 判断是否存在待填充的函数定义, 如果不存在, 将 index() 的返回值添加到 待移除队列中, 然后将其返回, 提供给 Dispatch 进行管理
+				 * */
+				fn define_end(&mut self, storage_context: StorageContext) -> (AddressKey, Vec<u64>);
+			}
+
+			struct DefineFunctionDispatch {
+			}
+			```
+			- 将 FunctionKey 与 DefineFunction 绑定 (之后称之为 FDMap)
+		- 如果检测到函数未定义, 但是在 FDMap 中, 说明是递归调用, 需要先预留位置, 并将其写入到 FunctionKey 待填充的队列中, 等到函数定义完成, 对队列中的位置进行填充
+	- 已定义
+		- 从声明中获取地址, 然后直接将地址写入到字节码
+
