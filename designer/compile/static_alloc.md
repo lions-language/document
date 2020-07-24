@@ -29,7 +29,7 @@ impl StaticAllocDispatch {
 		*self.env = env;
 	}
 
-	fn alloc(&mut self, data: Data) {
+	fn alloc(&mut self, data: Data) -> AddressKey {
 		match &self.env {
 			CompileType::Runtime => {
 			},
