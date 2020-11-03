@@ -24,8 +24,10 @@
 ### 基本规则
 - 每个模块下面应该有一个 mod.lions 文件, 该文件中必须指明当前模块的名称
     - module xxx
+	- 注意: 因为 module_name 是需要参与计算的, 所以这里 没有使用 双引号, 就是为了让用户确保 module_name 是一个utf8编码格式的字符串
 - 和 mod.lions 文件在同一级的所有文件都视为同一个模块
 - 在 mod.lions 中可以指定当前目录的 lions 文件, 被指定的文件将会被编译
+	- mod.lions 中需要使用 use "" 告知编译期 需要编译的文件
 - 存在 mod.lions 的目录在被指定的情况下(import 指定, 或者 与 main.lions 在同一个目录下, 或者 配置文件指定是库 的包), 一定会编译 其中指定的 lions 文件, 也就是说:
     - 如果 Lions.toml 中配置包为 lib, 那么 最外层(src/) 一定有一个 mod.lions 文件
     - 如果 Lions.toml 中配置包为 binary, 那么 最外层中如果存在 mod.lions 文件, 就会编译指定的lions(不包括 main.lions); 否则, 只会编译 main.lions
@@ -36,3 +38,4 @@
     - relmod "xxx"
 - 相关模块指定的目录不能存在 mod.lions
 - relmod 只能出现在 mod.lions 文件中
+
