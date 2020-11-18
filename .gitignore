@@ -3,4 +3,5 @@ designer/_book/
 !.gitignore
 target/
 Cargo.lock
+*.swp
 
